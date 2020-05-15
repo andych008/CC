@@ -11,10 +11,16 @@ import android.widget.Toast;
 
 import com.billy.cc.core.component.CC;
 import com.billy.cc.core.component.CCResult;
+import com.billy.cc.core.component.Chain;
 import com.billy.cc.core.component.IComponentCallback;
 import com.billy.cc.core.component.IDynamicComponent;
 import com.billy.cc.core.component.IMainThread;
 import com.billy.cc.demo.base.bean.User;
+import com.billy.cc.demo.interceptors.LogInterceptor;
+import com.taobao.android.dexposed.DexposedBridge;
+import com.taobao.android.dexposed.XC_MethodHook;
+
+import timber.log.Timber;
 
 import static com.billy.cc.demo.MainActivity.LoginUserObserverComponent.OBSERVER_ACTION_NAME;
 
@@ -36,6 +42,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         loginUserTextView = (TextView) findViewById(R.id.login_user);
         loginUserButton = (TextView) findViewById(R.id.login_user_state_observer);
         textView = (TextView) findViewById(R.id.console);
+        findViewById(R.id.hook).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                DexposedBridge.findAndHookMethod(LogInterceptor.class, "intercept", Chain.class, new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        super.beforeHookedMethod(param);
+                        Chain chain = (Chain) param.args[0];
+                        Timber.e("hook intercept: chain.cc = %s", chain.getCC().toString());
+                    }
+                });
+            }
+        });
         addOnClickListeners(R.id.componentAOpenActivity
                 , R.id.test_lifecycle
                 , R.id.componentAAsyncOpenActivity

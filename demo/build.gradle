@@ -46,6 +46,9 @@ android {
 dependencies {
     implementation "com.android.support:appcompat-v7:${rootProject.supportVersion}"
     implementation 'com.google.android:flexbox:0.3.0'
+    implementation 'me.weishu:epic:0.6.0'
+    implementation 'com.jakewharton.timber:timber:4.7.1'
+    implementation 'com.orhanobut:logger:2.2.0'
 
     //Notice:组件之间不要互相依赖，只在主app module依赖其它组件
     //使用addComponent(源码在cc-settings-2.gradle中)添加对组件的依赖可以达到如下效果:
