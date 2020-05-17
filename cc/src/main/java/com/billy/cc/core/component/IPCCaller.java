@@ -28,43 +28,22 @@ public class IPCCaller {
     private IPCCaller(){
     }
     //-------------------------单例模式 end --------------
-    /**
-     * 同步调用
-     */
-    public static Bundle call(Context context, String pkg, String component, String action, HashMap<String, Object> params, String callId) {
-        return call(context, pkg, component, action, params, callId, false);
-    }
-
-    public static Bundle call(Context context, String pkg, String component, String action, HashMap<String, Object> params, String callId, boolean isMainThreadSyncCall) {
-        IPCRequest request = new IPCRequest(component,  action, params, callId, isMainThreadSyncCall);
-        return call(context, pkg, request);
-    }
-
-    public static Bundle call(Context context, String pkg, IPCRequest request) {
-        Bundle extras = new Bundle();
-        extras.setClassLoader(IPCRequest.class.getClassLoader());
-        extras.putParcelable(ARG_EXTRAS_REQUEST, request);
-        return doIpc(context, pkg, extras);
-    }
 
 
     /**
      * 异步调用(回调线程：不做处理，默认在binder线程)
      */
-    public static void callAsync(Context context, String pkg, String component, String action, HashMap<String, Object> params, String callId, boolean isMainThreadSyncCall, final CP_Caller.ICallback callback) {
-        IPCRequest request = new IPCRequest(component,  action, params, callId, isMainThreadSyncCall);
-        callAsync(context, pkg, request, callback);
-    }
-
     public static void callAsync(Context context, String pkg, IPCRequest request, final CP_Caller.ICallback callback) {
         Bundle extras = new Bundle();
         extras.putParcelable(ARG_EXTRAS_REQUEST, request);
-        BundleCompat.putBinder(extras, ARG_EXTRAS_CALLBACK, new IRemoteCallback.Stub() {
-            @Override
-            public void callback(Bundle remoteResult) {
-                callback.onResult(remoteResult);
-            }
-        });
+        if (callback != null) {
+            BundleCompat.putBinder(extras, ARG_EXTRAS_CALLBACK, new IRemoteCallback.Stub() {
+                @Override
+                public void callback(Bundle remoteResult) {
+                    callback.onResult(remoteResult);
+                }
+            });
+        }
         doIpc(context, pkg, extras);
     }
 
@@ -112,12 +91,12 @@ public class IPCCaller {
 
     public static void cancel(Context context, String pkg, String callId) {
         IPCRequest request = IPCRequest.createCancelRequest(callId);
-        call(context, pkg, request);
+        callAsync(context, pkg, request, null);
     }
 
     public static void timeout(Context context, String pkg, String callId) {
         IPCRequest request = IPCRequest.createTimeoutRequest(callId);
-        call(context, pkg, request);
+        callAsync(context, pkg, request, null);
     }
 
     public static void getComponentListByProcessName(Context context, String pkg, CP_Caller.ICallback callback) {

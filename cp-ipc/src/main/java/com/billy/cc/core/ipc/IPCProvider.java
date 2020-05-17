@@ -93,7 +93,9 @@ abstract public class IPCProvider extends InnerProvider {
         Bundle extras = msg.getData();
         extras.setClassLoader(IPCRequest.class.getClassLoader());
         IPCRequest request = extras.getParcelable(ARG_EXTRAS_REQUEST);
-
+        if (CP_Util.VERBOSE_LOG) {
+            CP_Util.verboseLog("handleMessage with: request = %s", request);
+        }
 
 
         Bundle remoteResult = new Bundle();
@@ -107,10 +109,11 @@ abstract public class IPCProvider extends InnerProvider {
         }
 
         //有回调用方法就是异步调用
-        IBinder iBinder = (BundleCompat.getBinder(extras, ARG_EXTRAS_CALLBACK));
-        IRemoteCallback callback = IRemoteCallback.Stub.asInterface(iBinder);
 
-        if (callback != null) {
+
+        if (extras.containsKey(ARG_EXTRAS_CALLBACK)) {
+            IBinder iBinder = (BundleCompat.getBinder(extras, ARG_EXTRAS_CALLBACK));
+            IRemoteCallback callback = IRemoteCallback.Stub.asInterface(iBinder);
             try {
                 callback.callback(remoteResult);
             } catch (RemoteException e) {
