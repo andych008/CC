@@ -29,14 +29,10 @@ abstract public class IPCProvider extends InnerProvider {
     public static final String ARG_EXTRAS_COMPONENT_LIST = "component_list";
     public static final String ARG_EXTRAS_RESULT = "result";
 
-    private final byte[] wait4resultLock = new byte[0];
-    // FIXME: 2020/5/14 0014 改成线程池.强壮性
-
 
     private volatile static TaskDispatcher taskDispatcher;
     private Handler mainHandler;
     private Handler workerHandler;
-    private Bundle syncRet = new Bundle();
 
     /**
      * 请求分发器
@@ -74,9 +70,7 @@ abstract public class IPCProvider extends InnerProvider {
         mainHandler = new Handler(Looper.getMainLooper())  {
             @Override
             public void handleMessage(Message msg) {
-                IPCRequest request = (IPCRequest) msg.obj;
-                Bundle remoteResult = new Bundle();
-                IPCProvider.taskDispatcher.runAction(request, remoteResult);
+                doHandleMessage(msg);
             }
         };
         HandlerThread worker = new HandlerThread("CP_WORKER");
@@ -96,8 +90,11 @@ abstract public class IPCProvider extends InnerProvider {
             CP_Util.verboseLog("handleMessage with: msg = %s", msg);
         }
 
-        IPCRequest request = (IPCRequest)msg.obj;
         Bundle extras = msg.getData();
+        extras.setClassLoader(IPCRequest.class.getClassLoader());
+        IPCRequest request = extras.getParcelable(ARG_EXTRAS_REQUEST);
+
+
 
         Bundle remoteResult = new Bundle();
 
@@ -110,20 +107,16 @@ abstract public class IPCProvider extends InnerProvider {
         }
 
         //有回调用方法就是异步调用
-        if (extras.containsKey(ARG_EXTRAS_CALLBACK)) {
-            IBinder iBinder = (BundleCompat.getBinder(extras, ARG_EXTRAS_CALLBACK));
-            IRemoteCallback callback = IRemoteCallback.Stub.asInterface(iBinder);
+        IBinder iBinder = (BundleCompat.getBinder(extras, ARG_EXTRAS_CALLBACK));
+        IRemoteCallback callback = IRemoteCallback.Stub.asInterface(iBinder);
 
-            if (callback != null) {
-                try {
-                    callback.callback(remoteResult);
-                } catch (RemoteException e) {
-                    CP_Util.printStackTrace(e);
-                    CP_Util.log("remote doCallback failed!");
-                }
+        if (callback != null) {
+            try {
+                callback.callback(remoteResult);
+            } catch (RemoteException e) {
+                CP_Util.printStackTrace(e);
+                CP_Util.log("remote doCallback failed!");
             }
-        } else {
-            setResult4Waiting(remoteResult);
         }
     }
 
@@ -136,27 +129,21 @@ abstract public class IPCProvider extends InnerProvider {
             extras.setClassLoader(getClass().getClassLoader());
             CP_Util.log("receive call from other process. extras.keySet() = %s", Arrays.asList(extras.keySet().toArray()));
 
-            Message msg = workerHandler.obtainMessage();
-            msg.obj = extras.getParcelable(ARG_EXTRAS_REQUEST);
+            Message msg = Message.obtain();
+            msg.setData(extras);
             IPCRequest request = extras.getParcelable(ARG_EXTRAS_REQUEST);
             if (request != null) {
                 if (request.isMainThreadSyncCall()) {
                     mainHandler.sendMessage(msg);
                 } else {
-                    msg.setData(extras);
                     workerHandler.sendMessage(msg);
                 }
             } else {
                 CP_Util.logError("receive call from other process. request = null null null");
             }
 
-            if (extras.containsKey(ARG_EXTRAS_CALLBACK)) {
-                CP_Util.log("dispatch call ...");
-                return Bundle.EMPTY;
-            } else {
-                wait4Result();//异步转同步
-                return syncRet;
-            }
+            CP_Util.log("dispatch call ...");
+            return Bundle.EMPTY;
         } else {
             CP_Util.logError("receive call from other process. extras = null null null");
             return Bundle.EMPTY;
@@ -182,33 +169,6 @@ abstract public class IPCProvider extends InnerProvider {
         } else if (CMD_ACTION_TIMEOUT.equals(actionName)) {
             //请求超时
             IPCProvider.taskDispatcher.cmdTimeout(request.getCallId());
-        }
-    }
-
-    private void wait4Result() {
-        synchronized (wait4resultLock) {
-            try {
-                CP_Util.verboseLog("start waiting >>>");
-                // FIXME: 2020/5/15 0015 有没有更好的方案？跨进程调用更通用。
-                wait4resultLock.wait(5000);
-                CP_Util.verboseLog("end waiting <<<");
-            } catch (InterruptedException ignored) {
-                if (CP_Util.VERBOSE_LOG) {
-                    CP_Util.verboseLog("wait4Result timeout");
-                }
-                syncRet = Bundle.EMPTY;
-            }
-        }
-    }
-
-    private void setResult4Waiting(Bundle remoteResult) {
-        try {
-            synchronized (wait4resultLock) {
-                syncRet.putAll(remoteResult);
-                wait4resultLock.notifyAll();
-            }
-        } catch (Exception e) {
-            CP_Util.printStackTrace(e);
         }
     }
 }
