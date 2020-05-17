@@ -7,17 +7,14 @@ import android.os.Bundle;
 import android.support.annotation.RequiresApi;
 import android.support.v4.app.BundleCompat;
 
-import com.billy.cc.core.component.remote.RemoteCCResult;
 import com.billy.cc.core.ipc.CP_Caller;
 import com.billy.cc.core.ipc.CP_Util;
 import com.billy.cc.core.ipc.IPCRequest;
 import com.billy.cc.core.ipc.IRemoteCallback;
 
 import java.util.HashMap;
-import java.util.List;
 
 import static com.billy.cc.core.ipc.IPCProvider.ARG_EXTRAS_CALLBACK;
-import static com.billy.cc.core.ipc.IPCProvider.ARG_EXTRAS_COMPONENT_LIST;
 import static com.billy.cc.core.ipc.IPCProvider.ARG_EXTRAS_REQUEST;
 
 /**
@@ -123,10 +120,8 @@ public class IPCCaller {
         call(context, pkg, request);
     }
 
-    public static List<String> getComponentListByProcessName(Context context, String pkg) {
+    public static void getComponentListByProcessName(Context context, String pkg, CP_Caller.ICallback callback) {
         IPCRequest request = IPCRequest.createGetComponentListRequest();
-        Bundle bundle = call(context, pkg, request);
-        bundle.setClassLoader(IPCCaller.class.getClassLoader());
-        return bundle.getStringArrayList(ARG_EXTRAS_COMPONENT_LIST);
+        callAsync(context, pkg, request, callback);
     }
 }

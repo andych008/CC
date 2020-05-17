@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.support.annotation.NonNull;
@@ -33,6 +34,7 @@ abstract public class IPCProvider extends InnerProvider {
 
 
     private volatile static TaskDispatcher taskDispatcher;
+    private Handler mainHandler;
     private Handler workerHandler;
     private Bundle syncRet = new Bundle();
 
@@ -43,9 +45,9 @@ abstract public class IPCProvider extends InnerProvider {
      */
     public interface TaskDispatcher {
         /**
-         * 组件间常规请求
+         * 组件间常规请求 同步调用
          */
-        void runAction(String component, String action, Map<String, Object> params, Bundle remoteResult);
+        void runAction(IPCRequest request, Bundle remoteResult);
 
         /**
          * 命令请求：获取当前app中包含的组件列表
@@ -69,6 +71,14 @@ abstract public class IPCProvider extends InnerProvider {
 
     @Override
     public boolean onCreate() {
+        mainHandler = new Handler(Looper.getMainLooper())  {
+            @Override
+            public void handleMessage(Message msg) {
+                IPCRequest request = (IPCRequest) msg.obj;
+                Bundle remoteResult = new Bundle();
+                IPCProvider.taskDispatcher.runAction(request, remoteResult);
+            }
+        };
         HandlerThread worker = new HandlerThread("CP_WORKER");
         worker.start();
         workerHandler = new Handler(worker.getLooper()) {
@@ -85,32 +95,18 @@ abstract public class IPCProvider extends InnerProvider {
         if (CP_Util.VERBOSE_LOG) {
             CP_Util.verboseLog("handleMessage with: msg = %s", msg);
         }
-        Bundle extras = (Bundle)msg.obj;
-        IPCRequest request = extras.getParcelable(ARG_EXTRAS_REQUEST);
-        String actionName = request.getActionName();
+
+        IPCRequest request = (IPCRequest)msg.obj;
+        Bundle extras = msg.getData();
 
         Bundle remoteResult = new Bundle();
 
         if (request.isCmd()) {
-            if (CP_Util.VERBOSE_LOG) {
-                CP_Util.verboseLog("ipc cmd = %s", actionName);
-            }
-
-            if (CMD_ACTION_GET_COMPONENT_LIST.equals(actionName)) {
-                // 获取组件列表
-                ArrayList<String> componentList = IPCProvider.taskDispatcher.cmdGetComponentList();
-                remoteResult.putStringArrayList(ARG_EXTRAS_COMPONENT_LIST, componentList);
-
-            } else if (CMD_ACTION_CANCEL.equals(actionName)) {
-                // 取消请求
-                IPCProvider.taskDispatcher.cmdCancel(request.getCallId());
-
-            } else if (CMD_ACTION_TIMEOUT.equals(actionName)) {
-                //请求超时
-                IPCProvider.taskDispatcher.cmdTimeout(request.getCallId());
-            }
+            // FIXME: 2020/5/17 0017 命令也改成异步
+            //命令都是在子线程 同步处理
+            handleCmd(request, remoteResult);
         } else {
-            IPCProvider.taskDispatcher.runAction(request.getComponentName(), actionName, request.getParams(), remoteResult);
+            IPCProvider.taskDispatcher.runAction(request, remoteResult);
         }
 
         //有回调用方法就是异步调用
@@ -139,10 +135,20 @@ abstract public class IPCProvider extends InnerProvider {
         if (extras != null) {
             extras.setClassLoader(getClass().getClassLoader());
             CP_Util.log("receive call from other process. extras.keySet() = %s", Arrays.asList(extras.keySet().toArray()));
-            Message msg = workerHandler.obtainMessage();
-            msg.obj = extras;
 
-            workerHandler.sendMessage(msg);
+            Message msg = workerHandler.obtainMessage();
+            msg.obj = extras.getParcelable(ARG_EXTRAS_REQUEST);
+            IPCRequest request = extras.getParcelable(ARG_EXTRAS_REQUEST);
+            if (request != null) {
+                if (request.isMainThreadSyncCall()) {
+                    mainHandler.sendMessage(msg);
+                } else {
+                    msg.setData(extras);
+                    workerHandler.sendMessage(msg);
+                }
+            } else {
+                CP_Util.logError("receive call from other process. request = null null null");
+            }
 
             if (extras.containsKey(ARG_EXTRAS_CALLBACK)) {
                 CP_Util.log("dispatch call ...");
@@ -152,11 +158,32 @@ abstract public class IPCProvider extends InnerProvider {
                 return syncRet;
             }
         } else {
-            CP_Util.logError("receive call from other process. extras = null");
+            CP_Util.logError("receive call from other process. extras = null null null");
             return Bundle.EMPTY;
         }
     }
 
+
+    private void handleCmd(IPCRequest request, Bundle remoteResult) {
+        String actionName = request.getActionName();
+        if (CP_Util.VERBOSE_LOG) {
+            CP_Util.verboseLog("ipc cmd = %s", actionName);
+        }
+
+        if (CMD_ACTION_GET_COMPONENT_LIST.equals(actionName)) {
+            // 获取组件列表
+            ArrayList<String> componentList = IPCProvider.taskDispatcher.cmdGetComponentList();
+            remoteResult.putStringArrayList(ARG_EXTRAS_COMPONENT_LIST, componentList);
+
+        } else if (CMD_ACTION_CANCEL.equals(actionName)) {
+            // 取消请求
+            IPCProvider.taskDispatcher.cmdCancel(request.getCallId());
+
+        } else if (CMD_ACTION_TIMEOUT.equals(actionName)) {
+            //请求超时
+            IPCProvider.taskDispatcher.cmdTimeout(request.getCallId());
+        }
+    }
 
     private void wait4Result() {
         synchronized (wait4resultLock) {

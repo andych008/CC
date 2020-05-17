@@ -92,23 +92,18 @@ class SubProcessCCInterceptor implements ICCInterceptor {
                 }
                 HashMap<String, Object> params = (HashMap<String, Object>)cc.getParams();
                 IPCRequest request = new IPCRequest(cc.getComponentName(), cc.getActionName(), params, cc.getCallId(), isMainThreadSyncCall);
-                if (cc.isAsync()) {
-                    IPCCaller.callAsync(cc.getContext(), processName, request, new CP_Caller.ICallback() {
-                        @Override
-                        public void onResult(Bundle bundle) {
-                            setResult(bundle);
-                        }
-                    });
-                } else {
-                    Bundle bundle = IPCCaller.call(cc.getContext(), processName, request);
-                    setResult(bundle);
-                }
+                IPCCaller.callAsync(cc.getContext(), processName, request, new CP_Caller.ICallback() {
+                    @Override
+                    public void onResult(Bundle bundle) {
+                        setResult(bundle);
+                    }
+                });
             }
 
         }
 
         private void setResult(Bundle bundle) {
-            bundle.setClassLoader(RemoteCCResult.class.getClassLoader());
+            bundle.setClassLoader(getClass().getClassLoader());
             RemoteCCResult remoteCCResult = bundle.getParcelable(IPCProvider.ARG_EXTRAS_RESULT);
             if (CC.VERBOSE_LOG) {
                 CC.verboseLog(cc.getCallId(), "receive RemoteCCResult from process:%s, RemoteCCResult: %s"

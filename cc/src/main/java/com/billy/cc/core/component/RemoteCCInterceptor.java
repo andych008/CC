@@ -4,14 +4,19 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Bundle;
 import android.text.TextUtils;
 
 
 import com.billy.cc.core.component.remote.RemoteConnection;
+import com.billy.cc.core.ipc.CP_Caller;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static com.billy.cc.core.ipc.IPCProvider.ARG_EXTRAS_COMPONENT_LIST;
 
 /**
  * 跨App调用组件
@@ -114,11 +119,36 @@ class RemoteCCInterceptor extends SubProcessCCInterceptor {
 
         @Override
         public void run() {
-            List<String> componentList = IPCCaller.getComponentListByProcessName(CC.getApplication(), packageName);
-            if (componentList != null) {
+            IPCCaller.getComponentListByProcessName(CC.getApplication(), packageName, new CP_Caller.ICallback() {
+                @Override
+                public void onResult(Bundle result) {
+                    result.setClassLoader(getClass().getClassLoader());
+                    ArrayList<String> componentList = result.getStringArrayList(ARG_EXTRAS_COMPONENT_LIST);
+                    CC.log("getComponentListByProcessName#onResult : %s", componentList);
+                    if (componentList != null) {
+                        setResult4Waiting(componentList);
+                    } else {
+                        CC.logError("componentList == null");
+                    }
+                }
+            });
+            CC.log("getComponentListByProcessName : [%s]  waiting ...", packageName);
+            wait4Result();
+            CC.log("getComponentListByProcessName : [%s]  finished >>> %s", packageName, REMOTE_COMPONENTS.get(packageName));
+        }
+
+        private synchronized void setResult4Waiting(ArrayList<String> componentList) {
+            try {
                 REMOTE_COMPONENTS.put(packageName, componentList);
-            } else {
-                CC.logError("componentList == null");
+                notifyAll();
+            } catch(Exception ignored) {
+            }
+        }
+
+        private synchronized void wait4Result() {
+            try {
+                wait();
+            } catch (InterruptedException ignored) {
             }
         }
     }

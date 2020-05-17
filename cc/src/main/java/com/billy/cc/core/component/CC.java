@@ -16,6 +16,7 @@ import android.util.Log;
 import com.billy.android.pools.ObjPool;
 import com.billy.cc.core.component.remote.RemoteCCResult;
 import com.billy.cc.core.ipc.IPCProvider;
+import com.billy.cc.core.ipc.IPCRequest;
 
 import org.json.JSONObject;
 
@@ -103,9 +104,23 @@ public class CC {
         }
         IPCProvider.setTaskDispatcher(new IPCProvider.TaskDispatcher() {
             @Override
-            public void runAction(String component, String action, Map<String, Object> params, Bundle remoteResult) {
-                CC cc = CC.obtainBuilder(component).setActionName(action).setParams(params).build();
-                remoteResult.putParcelable(IPCProvider.ARG_EXTRAS_RESULT, new RemoteCCResult(cc.call()));
+            public void runAction(IPCRequest request, Bundle remoteResult) {
+                CC cc = CC.obtainBuilder(request.getComponentName())
+                        .setActionName(request.getActionName())
+                        .setParams(request.getParams())
+                        .setCallId(request.getCallId())
+                        .build();
+                remoteResult.putParcelable(IPCProvider.ARG_EXTRAS_RESULT, toRemoteCCResult(cc.call()));
+            }
+
+            private RemoteCCResult toRemoteCCResult(CCResult ccResult) {
+                RemoteCCResult remoteCCResult;
+                try{
+                    remoteCCResult = new RemoteCCResult(ccResult);
+                }catch(Exception e){
+                    remoteCCResult = new RemoteCCResult(CCResult.error(CCResult.CODE_ERROR_REMOTE_CC_DELIVERY_FAILED));
+                }
+                return remoteCCResult;
             }
 
             @Override
