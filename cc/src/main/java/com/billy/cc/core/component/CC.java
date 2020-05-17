@@ -104,6 +104,11 @@ public class CC {
         }
         IPCProvider.setTaskDispatcher(new IPCProvider.TaskDispatcher() {
             @Override
+            public void threadPool(Runnable runnable) {
+                ComponentManager.threadPool(runnable);
+            }
+
+            @Override
             public void runAction(IPCRequest request, Bundle remoteResult) {
                 CC cc = CC.obtainBuilder(request.getComponentName())
                         .setActionName(request.getActionName())
