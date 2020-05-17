@@ -23,14 +23,14 @@ public class RemoteConnection {
      * 获取当前设备上安装的可供跨app调用组件的App列表
      * @return 包名集合
      */
-    public static List<String> scanComponentApps() {
+    public static ArrayList<String> scanComponentApps() {
         Application application = CC.getApplication();
         String curPkg = application.getPackageName();
         PackageManager pm = application.getPackageManager();
         // 查询所有已经安装的应用程序
         Intent intent = new Intent("action.com.billy.cc.connection");
         List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
-        List<String> packageNames = new ArrayList<>();
+        ArrayList<String> packageNames = new ArrayList<>();
         for (ResolveInfo info : list) {
             ActivityInfo activityInfo = info.activityInfo;
             String packageName = activityInfo.packageName;

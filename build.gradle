@@ -33,7 +33,7 @@ allprojects {
 ext {
     compileVersion = 28
     buildVersion = '28.0.3'
-    minVersion = 8
+    minVersion = 11
 
     // support v7(28.0.0) minSdkVersion is 14
     demoMinSdkVersion = 14

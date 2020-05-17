@@ -4,11 +4,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.DeadObjectException;
-import android.os.SystemClock;
 import android.text.TextUtils;
 
-import com.billy.cc.core.component.remote.IRemoteCCService;
+
 import com.billy.cc.core.component.remote.RemoteConnection;
 
 import java.util.List;
@@ -23,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 class RemoteCCInterceptor extends SubProcessCCInterceptor {
 
-    private static final ConcurrentHashMap<String, IRemoteCCService> REMOTE_CONNECTIONS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, List<String>> REMOTE_COMPONENTS = new ConcurrentHashMap<>();
 
     //-------------------------单例模式 start --------------
     /** 单例模式Holder */
@@ -41,44 +39,20 @@ class RemoteCCInterceptor extends SubProcessCCInterceptor {
     public CCResult intercept(Chain chain) {
         String processName = getProcessName(chain.getCC().getComponentName());
         if (!TextUtils.isEmpty(processName)) {
-            return multiProcessCall(chain, processName, REMOTE_CONNECTIONS);
+            return multiProcessCall(chain, processName);
         }
         return CCResult.error(CCResult.CODE_ERROR_NO_COMPONENT_FOUND);
     }
 
     private String getProcessName(String componentName) {
         String processName = null;
-        try {
-            for (Map.Entry<String, IRemoteCCService> entry : REMOTE_CONNECTIONS.entrySet()) {
-                try {
-                    processName = entry.getValue().getComponentProcessName(componentName);
-                } catch(DeadObjectException e) {
-                    String processNameTo = entry.getKey();
-                    RemoteCCService.remove(processNameTo);
-                    IRemoteCCService service = RemoteCCService.get(processNameTo);
-                    if (service == null) {
-                        String packageName = processNameTo.split(":")[0];
-                        boolean wakeup = RemoteConnection.tryWakeup(packageName);
-                        CC.log("wakeup remote app '%s'. success=%b.", packageName, wakeup);
-                        if (wakeup) {
-                            service = getMultiProcessService(processNameTo);
-                        }
-                    }
-                    if (service != null) {
-                        try {
-                            processName = service.getComponentProcessName(componentName);
-                            REMOTE_CONNECTIONS.put(processNameTo, service);
-                        } catch(Exception ex) {
-                            CCUtil.printStackTrace(ex);
-                        }
-                    }
-                }
-                if (!TextUtils.isEmpty(processName)) {
-                    return processName;
+        for (Map.Entry<String, List<String>> entry : REMOTE_COMPONENTS.entrySet()) {
+            for (String s : entry.getValue()) {
+                if (s.equals(componentName)) {
+                    processName = entry.getKey();
+                    break;
                 }
             }
-        } catch(Exception e) {
-            CCUtil.printStackTrace(e);
         }
         return processName;
     }
@@ -111,7 +85,7 @@ class RemoteCCInterceptor extends SubProcessCCInterceptor {
                 String action = intent.getAction();
                 CC.log("onReceived.....pkg=" + packageName + ", action=" + action);
                 if (Intent.ACTION_PACKAGE_REMOVED.equals(action)) {
-                    REMOTE_CONNECTIONS.remove(packageName);
+                    REMOTE_COMPONENTS.remove(packageName);
                 } else {
                     CC.log("start to wakeup remote app:%s", packageName);
                     if (RemoteConnection.tryWakeup(packageName)) {
@@ -140,30 +114,12 @@ class RemoteCCInterceptor extends SubProcessCCInterceptor {
 
         @Override
         public void run() {
-            IRemoteCCService service = getMultiProcessService(packageName);
-            if (service != null) {
-                REMOTE_CONNECTIONS.put(packageName, service);
+            List<String> componentList = IPCCaller.getComponentListByProcessName(CC.getApplication(), packageName);
+            if (componentList != null) {
+                REMOTE_COMPONENTS.put(packageName, componentList);
+            } else {
+                CC.logError("componentList == null");
             }
         }
     }
-
-    private static final int MAX_CONNECT_TIME_DURATION = 1000;
-    @Override
-    protected IRemoteCCService getMultiProcessService(String packageName) {
-        long start = SystemClock.elapsedRealtime();
-        IRemoteCCService service = null;
-        while (SystemClock.elapsedRealtime() - start < MAX_CONNECT_TIME_DURATION) {
-            service = RemoteCCService.get(packageName);
-            if (service != null) {
-                break;
-            }
-            SystemClock.sleep(50);
-        }
-        CC.log("connect remote app '%s' %s. cost time=%d"
-                , packageName
-                , service == null ? "failed" : "success"
-                , (SystemClock.elapsedRealtime() - start));
-        return service;
-    }
-
 }

@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.support.v4.app.Fragment;
@@ -13,6 +14,8 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.billy.android.pools.ObjPool;
+import com.billy.cc.core.component.remote.RemoteCCResult;
+import com.billy.cc.core.ipc.IPCProvider;
 
 import org.json.JSONObject;
 
@@ -98,6 +101,32 @@ public class CC {
                 application.registerActivityLifecycleCallbacks(new CCMonitor.ActivityMonitor());
             }
         }
+        IPCProvider.setTaskDispatcher(new IPCProvider.TaskDispatcher() {
+            @Override
+            public void runAction(String component, String action, Map<String, Object> params, Bundle remoteResult) {
+                CC cc = CC.obtainBuilder(component).setActionName(action).setParams(params).build();
+                remoteResult.putParcelable(IPCProvider.ARG_EXTRAS_RESULT, new RemoteCCResult(cc.call()));
+            }
+
+            @Override
+            public ArrayList<String> cmdGetComponentList() {
+                ArrayList<String> componentList = new ArrayList<>();
+                for (Map.Entry<String, IComponent> entry : ComponentManager.COMPONENTS.entrySet()) {
+                    componentList.add(entry.getKey());
+                }
+                return componentList;
+            }
+
+            @Override
+            public void cmdCancel(String callId) {
+                CC.cancel(callId);
+            }
+
+            @Override
+            public void cmdTimeout(String callId) {
+                CC.timeout(callId);
+            }
+        });
         if (initComponents) {
             ComponentManager.init();
         }
@@ -839,7 +868,7 @@ public class CC {
     public static void log(String s, Object... args) {
         if (DEBUG) {
             s = format(s, args);
-            Log.i(CC.TAG, s);
+            Log.i(CC.TAG, "(" + CCUtil.getCurProcessName() +")(" + Thread.currentThread().getName() + ")" + " >>>> "+s);
         }
     }
     static void logError(String s, Object... args) {

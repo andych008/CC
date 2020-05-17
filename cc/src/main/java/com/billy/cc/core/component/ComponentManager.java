@@ -23,7 +23,7 @@ import static com.billy.cc.core.component.GlobalCCInterceptorManager.INTERCEPTOR
  */
 class ComponentManager {
     /** 当前进程中的组件集合 */
-    private static final ConcurrentHashMap<String, IComponent> COMPONENTS = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<String, IComponent> COMPONENTS = new ConcurrentHashMap<>();
     /**
      * 组件名称对应的进程名称集合
      * 当前进程为主进程：包含当前app内的所有静态组件和动态组件的（名称 - 进程名）的映射表

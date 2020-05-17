@@ -34,6 +34,7 @@ dependencies {
     compile "com.billy.android:pools:0.0.6"
     compileOnly "com.android.support:appcompat-v7:${rootProject.supportVersion}"
     compileOnly project(':android_internal')
+    implementation project(':cp-ipc')
 }
 
 sourceCompatibility = 1.7

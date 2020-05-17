@@ -1,14 +1,16 @@
 package com.billy.cc.core.component;
 
-import android.os.DeadObjectException;
+import android.os.Bundle;
 import android.os.Looper;
-import android.os.RemoteException;
 
-import com.billy.cc.core.component.remote.IRemoteCCService;
-import com.billy.cc.core.component.remote.IRemoteCallback;
 import com.billy.cc.core.component.remote.RemoteCC;
 import com.billy.cc.core.component.remote.RemoteCCResult;
+import com.billy.cc.core.ipc.CP_Caller;
+import com.billy.cc.core.ipc.IPCProvider;
+import com.billy.cc.core.ipc.IPCRequest;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -18,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 class SubProcessCCInterceptor implements ICCInterceptor {
 
-    private static final ConcurrentHashMap<String, IRemoteCCService> CONNECTIONS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, List<String>> CONNECTIONS = new ConcurrentHashMap<>();
 
     //-------------------------单例模式 start --------------
     /** 单例模式Holder */
@@ -36,18 +38,15 @@ class SubProcessCCInterceptor implements ICCInterceptor {
     public CCResult intercept(Chain chain) {
         String componentName = chain.getCC().getComponentName();
         String processName = ComponentManager.getComponentProcessName(componentName);
-        return multiProcessCall(chain, processName, CONNECTIONS);
+        return multiProcessCall(chain, processName);
     }
 
-    CCResult multiProcessCall(Chain chain, String processName
-            , ConcurrentHashMap<String, IRemoteCCService> connectionCache) {
-        if (processName == null) {
-            return CCResult.error(CCResult.CODE_ERROR_NO_COMPONENT_FOUND);
-        }
+    CCResult multiProcessCall(Chain chain, String processName) {
+
         CC cc = chain.getCC();
         //主线程同步调用时，跨进程也要在主线程同步调用
         boolean isMainThreadSyncCall = !cc.isAsync() && Looper.getMainLooper() == Looper.myLooper();
-        ProcessCrossTask task = new ProcessCrossTask(cc, processName, connectionCache, isMainThreadSyncCall);
+        ProcessCrossTask task = new ProcessCrossTask(cc, processName, isMainThreadSyncCall);
         ComponentManager.threadPool(task);
         if (!cc.isFinished()) {
             //执行 Wait4ResultInterceptor
@@ -62,25 +61,15 @@ class SubProcessCCInterceptor implements ICCInterceptor {
         return cc.getResult();
     }
 
-    protected IRemoteCCService getMultiProcessService(String processName) {
-        CC.log("start to get RemoteService from process %s", processName);
-        IRemoteCCService service = RemoteCCService.get(processName);
-        CC.log("get RemoteService from process %s %s!", processName, (service != null ? "success" : "failed"));
-        return service;
-    }
-
     class ProcessCrossTask implements Runnable {
 
         private final CC cc;
         private final String processName;
-        private final ConcurrentHashMap<String, IRemoteCCService> connectionCache;
         private final boolean isMainThreadSyncCall;
-        private IRemoteCCService service;
 
-        ProcessCrossTask(CC cc, String processName, ConcurrentHashMap<String, IRemoteCCService> connectionCache, boolean isMainThreadSyncCall) {
+        ProcessCrossTask(CC cc, String processName, boolean isMainThreadSyncCall) {
             this.cc = cc;
             this.processName = processName;
-            this.connectionCache = connectionCache;
             this.isMainThreadSyncCall = isMainThreadSyncCall;
         }
 
@@ -91,70 +80,52 @@ class SubProcessCCInterceptor implements ICCInterceptor {
         }
 
         private void call(RemoteCC remoteCC) {
-            try {
-                service = connectionCache.get(processName);
-                if (service == null) {
-                    //获取跨进程通信的binder
-                    service = getMultiProcessService(processName);
-                    if (service != null) {
-                        connectionCache.put(processName, service);
-                    }
-                }
+            if (processName != null) {
                 if (cc.isFinished()) {
                     CC.verboseLog(cc.getCallId(), "cc is finished before call %s process", processName);
                     return;
                 }
-                if (service == null) {
-                    CC.verboseLog(cc.getCallId(), "RemoteService is not found for process: %s", processName);
-                    setResult(CCResult.error(CCResult.CODE_ERROR_NO_COMPONENT_FOUND));
-                    return;
-                }
+
                 if (CC.VERBOSE_LOG) {
                     CC.verboseLog(cc.getCallId(), "start to call process:%s, RemoteCC: %s"
                             , processName, remoteCC.toString());
                 }
-                service.call(remoteCC, new IRemoteCallback.Stub() {
-                    @Override
-                    public void callback(RemoteCCResult remoteCCResult) throws RemoteException {
-                        try {
-                            if (CC.VERBOSE_LOG) {
-                                CC.verboseLog(cc.getCallId(), "receive RemoteCCResult from process:%s, RemoteCCResult: %s"
-                                        , processName, remoteCCResult.toString());
-                            }
-                            setResult(remoteCCResult.toCCResult());
-                        } catch(Exception e) {
-                            CCUtil.printStackTrace(e);
-                            setResult(CCResult.error(CCResult.CODE_ERROR_REMOTE_CC_DELIVERY_FAILED));
+                HashMap<String, Object> params = (HashMap<String, Object>)cc.getParams();
+                IPCRequest request = new IPCRequest(cc.getComponentName(), cc.getActionName(), params, cc.getCallId(), isMainThreadSyncCall);
+                if (cc.isAsync()) {
+                    IPCCaller.callAsync(cc.getContext(), processName, request, new CP_Caller.ICallback() {
+                        @Override
+                        public void onResult(Bundle bundle) {
+                            setResult(bundle);
                         }
-                    }
-                });
-            } catch (DeadObjectException e) {
-                RemoteCCService.remove(processName);
-                connectionCache.remove(processName);
-                call(remoteCC);
-            } catch (Exception e) {
-                CCUtil.printStackTrace(e);
-                setResult(CCResult.error(CCResult.CODE_ERROR_REMOTE_CC_DELIVERY_FAILED));
+                    });
+                } else {
+                    Bundle bundle = IPCCaller.call(cc.getContext(), processName, request);
+                    setResult(bundle);
+                }
+            }
+
+        }
+
+        private void setResult(Bundle bundle) {
+            bundle.setClassLoader(RemoteCCResult.class.getClassLoader());
+            RemoteCCResult remoteCCResult = bundle.getParcelable(IPCProvider.ARG_EXTRAS_RESULT);
+            if (CC.VERBOSE_LOG) {
+                CC.verboseLog(cc.getCallId(), "receive RemoteCCResult from process:%s, RemoteCCResult: %s"
+                        , processName, remoteCCResult.toString());
+            }
+            cc.setResult4Waiting(remoteCCResult.toCCResult());
+        }
+
+        private void cancel() {
+            if (processName != null) {
+                IPCCaller.cancel(cc.getContext(), processName, cc.getCallId());
             }
         }
 
-        void setResult(CCResult result) {
-            cc.setResult4Waiting(result);
-        }
-
-        void cancel() {
-            try {
-                service.cancel(cc.getCallId());
-            } catch (Exception e) {
-                CCUtil.printStackTrace(e);
-            }
-        }
-
-        void timeout() {
-            try {
-                service.timeout(cc.getCallId());
-            } catch (Exception e) {
-                CCUtil.printStackTrace(e);
+        private void timeout() {
+            if (processName != null) {
+                IPCCaller.timeout(cc.getContext(), processName, cc.getCallId());
             }
         }
     }
