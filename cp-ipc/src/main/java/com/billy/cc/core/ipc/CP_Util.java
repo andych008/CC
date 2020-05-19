@@ -8,12 +8,12 @@ import java.io.FileReader;
 import java.io.IOException;
 
 public class CP_Util {
-    private static final String TAG = "CP_Caller";
-    private static final String VERBOSE_TAG = "CP_Caller_VERBOSE";
+    private static final String TAG = "IPCCaller";
+    private static final String VERBOSE_TAG = "IPCCaller_VERBOSE";
     private static final String PROCESS_UNKNOWN = "UNKNOWN";
     private static String processName = null;
     static boolean DEBUG = false;
-    public static boolean VERBOSE_LOG = false;
+    static boolean VERBOSE_LOG = false;
 
     static {
         if (BuildConfig.DEBUG) {

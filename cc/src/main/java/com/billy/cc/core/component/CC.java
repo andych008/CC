@@ -15,6 +15,7 @@ import android.util.Log;
 
 import com.billy.android.pools.ObjPool;
 import com.billy.cc.core.component.remote.RemoteCCResult;
+import com.billy.cc.core.ipc.IPCCaller;
 import com.billy.cc.core.ipc.IPCProvider;
 import com.billy.cc.core.ipc.IPCRequest;
 
@@ -28,12 +29,16 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.billy.cc.core.component.CCIPCRequest.CMD_ACTION_CANCEL;
+import static com.billy.cc.core.component.CCIPCRequest.CMD_ACTION_GET_COMPONENT_LIST;
+import static com.billy.cc.core.component.CCIPCRequest.CMD_ACTION_TIMEOUT;
 import static com.billy.cc.core.component.CCUtil.put;
 import static com.billy.cc.core.component.ComponentManager.ACTION_REGISTER;
 import static com.billy.cc.core.component.ComponentManager.ACTION_UNREGISTER;
 import static com.billy.cc.core.component.ComponentManager.COMPONENT_DYNAMIC_COMPONENT_OPTION;
 import static com.billy.cc.core.component.ComponentManager.KEY_COMPONENT_NAME;
 import static com.billy.cc.core.component.ComponentManager.KEY_PROCESS_NAME;
+import static com.billy.cc.core.ipc.IPCProvider.ARG_EXTRAS_RESULT;
 
 /**
  * 组件调用
@@ -102,6 +107,8 @@ public class CC {
                 application.registerActivityLifecycleCallbacks(new CCMonitor.ActivityMonitor());
             }
         }
+
+        IPCCaller.URI_FORMAT = "content://%s.com.billy.cc.core.remote";
         IPCProvider.setTaskDispatcher(new IPCProvider.TaskDispatcher() {
             @Override
             public void threadPool(Runnable runnable) {
@@ -110,12 +117,18 @@ public class CC {
 
             @Override
             public void runAction(IPCRequest request, Bundle remoteResult) {
-                CC cc = CC.obtainBuilder(request.getComponentName())
-                        .setActionName(request.getActionName())
-                        .setParams(request.getParams())
-                        .setCallId(request.getCallId())
-                        .build();
-                remoteResult.putParcelable(IPCProvider.ARG_EXTRAS_RESULT, toRemoteCCResult(cc.call()));
+                Bundle extra = request.getExtra();
+
+                if (extra != null && extra.getBoolean(CCIPCRequest.EXTRAS_IS_CMD)) {
+                    handleCmd(request, remoteResult);
+                } else {
+                    CC cc = CC.obtainBuilder(request.getComponentName())
+                            .setActionName(request.getActionName())
+                            .setParams(request.getParams())
+                            .setCallId(request.getCallId())
+                            .build();
+                    remoteResult.putParcelable(ARG_EXTRAS_RESULT, toRemoteCCResult(cc.call()));
+                }
             }
 
             private RemoteCCResult toRemoteCCResult(CCResult ccResult) {
@@ -128,24 +141,30 @@ public class CC {
                 return remoteCCResult;
             }
 
-            @Override
-            public ArrayList<String> cmdGetComponentList() {
-                ArrayList<String> componentList = new ArrayList<>();
-                for (Map.Entry<String, IComponent> entry : ComponentManager.COMPONENTS.entrySet()) {
-                    componentList.add(entry.getKey());
+            private void handleCmd(IPCRequest request, Bundle remoteResult) {
+                String actionName = request.getActionName();
+                if (CC.VERBOSE_LOG) {
+                    CC.verboseLog("ipc cmd = %s", actionName);
                 }
-                return componentList;
+
+                if (CMD_ACTION_GET_COMPONENT_LIST.equals(actionName)) {
+                    // 获取组件列表
+                    ArrayList<String> componentList = new ArrayList<>();
+                    for (Map.Entry<String, IComponent> entry : ComponentManager.COMPONENTS.entrySet()) {
+                        componentList.add(entry.getKey());
+                    }
+                    remoteResult.putStringArrayList(ARG_EXTRAS_RESULT, componentList);
+
+                } else if (CMD_ACTION_CANCEL.equals(actionName)) {
+                    // 取消请求
+                    CC.cancel(request.getCallId());
+
+                } else if (CMD_ACTION_TIMEOUT.equals(actionName)) {
+                    //请求超时
+                    CC.timeout(request.getCallId());
+                }
             }
 
-            @Override
-            public void cmdCancel(String callId) {
-                CC.cancel(callId);
-            }
-
-            @Override
-            public void cmdTimeout(String callId) {
-                CC.timeout(callId);
-            }
         });
         if (initComponents) {
             ComponentManager.init();

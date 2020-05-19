@@ -1,71 +1,79 @@
 package com.billy.cc.core.ipc;
 
+import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
 
 import java.util.HashMap;
-import java.util.Map;
 
 /**
  * IPC请求对象
  *
- * @author billy.qi
- * @since 18/6/24 11:29
+ * @author 喵叔catuncle    2020/5/20 0020
  */
 public class IPCRequest implements Parcelable {
-    public static final String CMD_ACTION_GET_COMPONENT_LIST = "cmd_action_get_component_list";
-    public static final String CMD_ACTION_CANCEL = "cmd_action_cancel";
-    public static final String CMD_ACTION_TIMEOUT = "cmd_action_timeout";
+
+    public static final class Builder {
+
+        private String componentName;
+        private String actionName;
+        private HashMap<String, Object> params;
+        private String callId;
+        private boolean isMainThreadSyncCall;
+        private Bundle extra;
+
+        public Builder() {
+        }
+
+        public Builder initTask(String componentName, String actionName, HashMap<String, Object> params, String callId) {
+            this.componentName = componentName;
+            this.actionName = actionName;
+            this.params = params;
+            this.callId = callId;
+            return this;
+        }
+
+        public Builder mainThreadSyncCall(boolean isMainThreadSyncCall) {
+            this.isMainThreadSyncCall = isMainThreadSyncCall;
+            return this;
+        }
+
+        public Builder extra(Bundle extra) {
+            this.extra = extra;
+            return this;
+        }
+
+        public IPCRequest build() {
+            return new IPCRequest(this);
+        }
+    }
+
 
     private String componentName;
     private String actionName;
     private HashMap<String, Object> params;
     private String callId;
     private boolean isMainThreadSyncCall;
-    private boolean isCmd = false;
+    //请求对象扩展(供使用方定义自己特有的功能)
+    protected Bundle extra;
 
-    public static IPCRequest createGetComponentListRequest() {
-        return new IPCRequest(CMD_ACTION_GET_COMPONENT_LIST);
+    public IPCRequest(Builder builder) {
+        this.componentName = builder.componentName;
+        this.actionName = builder.actionName;
+        this.params = builder.params;
+        this.callId = builder.callId;
+        this.isMainThreadSyncCall = builder.isMainThreadSyncCall;
+        this.extra = builder.extra;
     }
 
-    public static IPCRequest createCancelRequest(String callId) {
-        return new IPCRequest(CMD_ACTION_CANCEL, callId);
-    }
-
-    public static IPCRequest createTimeoutRequest(String callId) {
-        return new IPCRequest(CMD_ACTION_TIMEOUT, callId);
-    }
-
-    private IPCRequest(String actionName) {
-        this.actionName = actionName;
-        this.isCmd = true;
-    }
-
-    private IPCRequest(String actionName, String callId) {
-        this.actionName = actionName;
-        this.callId = callId;
-        this.isCmd = true;
-    }
-
-    public IPCRequest(String componentName, String actionName, HashMap<String, Object> params, String callId) {
-        this.componentName = componentName;
-        this.actionName = actionName;
-        this.params = params;
-        this.callId = callId;
-    }
-
-    public IPCRequest(String componentName, String actionName, HashMap<String, Object> params, String callId, boolean isMainThreadSyncCall) {
-        this(componentName, actionName, params, callId);
-        this.isMainThreadSyncCall = isMainThreadSyncCall;
-    }
 
     protected IPCRequest(Parcel in) {
         componentName = in.readString();
         actionName = in.readString();
         callId = in.readString();
         isMainThreadSyncCall = in.readByte() != 0;
-        isCmd = in.readByte() != 0;
         params = (HashMap<String, Object>) in.readSerializable();
+        extra = in.readBundle(getClass().getClassLoader());
     }
 
     @Override
@@ -76,8 +84,19 @@ public class IPCRequest implements Parcelable {
                 ", params=" + params +
                 ", callId='" + callId + '\'' +
                 ", isMainThreadSyncCall=" + isMainThreadSyncCall +
-                ", isCmd=" + isCmd +
+                ", extra=" + bundle2Str(extra) +
                 '}';
+    }
+
+    private String bundle2Str(Bundle bundle) {
+        if (bundle != null) {
+            StringBuilder sb = new StringBuilder();
+            for (String key : bundle.keySet()) {
+                sb.append(String.format("[%s : %s]", key, bundle.get(key)));
+            }
+            return sb.toString();
+        }
+        return null;
     }
 
     @Override
@@ -86,8 +105,8 @@ public class IPCRequest implements Parcelable {
         dest.writeString(actionName);
         dest.writeString(callId);
         dest.writeByte((byte) (isMainThreadSyncCall ? 1 : 0));
-        dest.writeByte((byte) (isCmd ? 1 : 0));
         dest.writeSerializable(params);
+        dest.writeBundle(extra);
     }
 
     @Override
@@ -147,11 +166,11 @@ public class IPCRequest implements Parcelable {
         isMainThreadSyncCall = mainThreadSyncCall;
     }
 
-    public boolean isCmd() {
-        return isCmd;
+    public Bundle getExtra() {
+        return extra;
     }
 
-    public void setCmd(boolean cmd) {
-        isCmd = cmd;
+    public void setExtra(Bundle extra) {
+        this.extra = extra;
     }
 }

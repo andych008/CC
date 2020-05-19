@@ -11,26 +11,24 @@ import android.support.v4.app.BundleCompat;
 
 import com.billy.cc.core.ipc.inner.InnerProvider;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 
-import static com.billy.cc.core.ipc.IPCRequest.CMD_ACTION_CANCEL;
-import static com.billy.cc.core.ipc.IPCRequest.CMD_ACTION_GET_COMPONENT_LIST;
-import static com.billy.cc.core.ipc.IPCRequest.CMD_ACTION_TIMEOUT;
+/**
+ * 通过Provider#call()实现跨进程方法调用
+ *
+ * @author 喵叔catuncle    2020/5/20 0020
+ */
+public class IPCProvider extends InnerProvider {
 
-
-abstract public class IPCProvider extends InnerProvider {
-
-    public static final String ARG_EXTRAS_REQUEST = "request";
+	public static final String ARG_EXTRAS_REQUEST = "request";
     public static final String ARG_EXTRAS_CALLBACK = "callback";
-    public static final String ARG_EXTRAS_COMPONENT_LIST = "component_list";
     public static final String ARG_EXTRAS_RESULT = "result";
-
 
     private volatile static TaskDispatcher taskDispatcher;
     private Handler mainHandler;
 
     public static void setTaskDispatcher(TaskDispatcher taskDispatcher) {
+        CP_Util.log("setTaskDispatcher = %s", taskDispatcher.getClass().getName());
         IPCProvider.taskDispatcher = taskDispatcher;
     }
 
@@ -47,22 +45,30 @@ abstract public class IPCProvider extends InnerProvider {
         if (extras != null) {
             extras.setClassLoader(getClass().getClassLoader());
             CP_Util.log("receive call from other process. extras.keySet() = %s", Arrays.asList(extras.keySet().toArray()));
-
             IPCRequest request = extras.getParcelable(ARG_EXTRAS_REQUEST);
+
             if (request != null) {
-                RemoteTask remoteTask = new RemoteTask(request, getRemoteCallback(extras));
+                IRemoteCallback callback = getRemoteCallback(extras);
+
+                Task task = new Task(request, callback);
 
                 if (request.isMainThreadSyncCall()) {
-                    mainHandler.post(remoteTask);
+                    mainHandler.post(task);
                 } else {
-                    IPCProvider.taskDispatcher.threadPool(remoteTask);
+                    IPCProvider.taskDispatcher.threadPool(task);
+                }
+
+                if (callback != null) {
+                    CP_Util.log("dispatch call ...");
+                    return Bundle.EMPTY;
+                } else {
+                    task.wait4Result();//异步转同步
+                    return task.syncRet;
                 }
             } else {
                 CP_Util.logError("receive call from other process. request = null null null");
+                return Bundle.EMPTY;
             }
-
-            CP_Util.log("dispatch call ...");
-            return Bundle.EMPTY;
         } else {
             CP_Util.logError("receive call from other process. extras = null null null");
             return Bundle.EMPTY;
@@ -78,11 +84,15 @@ abstract public class IPCProvider extends InnerProvider {
         return callback;
     }
 
-    static class RemoteTask implements Runnable {
+    /**
+     * 把请求包装成任务，交给TaskDispatcher来分发处理
+     */
+    static class Task implements Runnable {
         private IPCRequest request;
         private IRemoteCallback callback;
+        private Bundle syncRet = Bundle.EMPTY;
 
-        public RemoteTask(IPCRequest request, IRemoteCallback callback) {
+        Task(IPCRequest request, IRemoteCallback callback) {
             this.request = request;
             this.callback = callback;
         }
@@ -90,16 +100,11 @@ abstract public class IPCProvider extends InnerProvider {
         @Override
         public void run() {
             if (CP_Util.VERBOSE_LOG) {
-                CP_Util.verboseLog("RemoteTask run with: %s", request);
+                CP_Util.verboseLog("Task run with: %s", request);
             }
 
             Bundle remoteResult = new Bundle();
-
-            if (request.isCmd()) {
-                handleCmd(request, remoteResult);
-            } else {
-                IPCProvider.taskDispatcher.runAction(request, remoteResult);
-            }
+            IPCProvider.taskDispatcher.runAction(request, remoteResult);
 
             if (callback != null) {
                 try {
@@ -108,59 +113,53 @@ abstract public class IPCProvider extends InnerProvider {
                     CP_Util.printStackTrace(e);
                     CP_Util.log("remote doCallback failed!");
                 }
+            } else {
+                setResult4Waiting(remoteResult);
             }
         }
 
-        private void handleCmd(IPCRequest request, Bundle remoteResult) {
-            String actionName = request.getActionName();
-            if (CP_Util.VERBOSE_LOG) {
-                CP_Util.verboseLog("ipc cmd = %s", actionName);
+        synchronized void wait4Result() {
+            this.syncRet = new Bundle();
+            try {
+                CP_Util.verboseLog("start waiting >>>");
+                // FIXME: 假设同步调用最长等5秒 有没有更好的方案？跨进程调用更通用。
+                this.wait(5000);
+                CP_Util.verboseLog("end waiting <<<");
+            } catch (InterruptedException ignored) {
+                if (CP_Util.VERBOSE_LOG) {
+                    CP_Util.logError("wait4Result interrupted");
+                }
+                syncRet = Bundle.EMPTY;
             }
+        }
 
-            if (CMD_ACTION_GET_COMPONENT_LIST.equals(actionName)) {
-                // 获取组件列表
-                ArrayList<String> componentList = IPCProvider.taskDispatcher.cmdGetComponentList();
-                remoteResult.putStringArrayList(ARG_EXTRAS_COMPONENT_LIST, componentList);
-
-            } else if (CMD_ACTION_CANCEL.equals(actionName)) {
-                // 取消请求
-                IPCProvider.taskDispatcher.cmdCancel(request.getCallId());
-
-            } else if (CMD_ACTION_TIMEOUT.equals(actionName)) {
-                //请求超时
-                IPCProvider.taskDispatcher.cmdTimeout(request.getCallId());
+        private synchronized void setResult4Waiting(Bundle remoteResult) {
+            if (CP_Util.VERBOSE_LOG) {
+                CP_Util.verboseLog("setResult4Waiting remoteResult = %s", remoteResult);
+            }
+            try {
+                syncRet = remoteResult;
+                this.notifyAll();
+            } catch (Exception e) {
+                CP_Util.printStackTrace(e);
             }
         }
     }
 
 
     /**
-     * 请求分发器
-     * <br/>
-     * 我们将请求分为两类：常规请求、命令请求
+     * 任务分发器，输入Task，输出remoteResult
      */
     public interface TaskDispatcher {
 
+        /**
+         * 任务放入指定线程
+         */
         void threadPool(Runnable runnable);
 
         /**
-         * 组件间常规请求 同步调用
+         * 执行任务
          */
         void runAction(IPCRequest request, Bundle remoteResult);
-
-        /**
-         * 命令请求：获取当前app中包含的组件列表
-         */
-        ArrayList<String> cmdGetComponentList();
-
-        /**
-         * 命令请求：取消请求
-         */
-        void cmdCancel(String callId);
-
-        /**
-         * 命令请求：请求超时
-         */
-        void cmdTimeout(String callId);
     }
 }

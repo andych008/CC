@@ -5,7 +5,7 @@ import android.os.Looper;
 
 import com.billy.cc.core.component.remote.RemoteCC;
 import com.billy.cc.core.component.remote.RemoteCCResult;
-import com.billy.cc.core.ipc.CP_Caller;
+import com.billy.cc.core.ipc.IPCCaller;
 import com.billy.cc.core.ipc.IPCProvider;
 import com.billy.cc.core.ipc.IPCRequest;
 
@@ -91,11 +91,15 @@ class SubProcessCCInterceptor implements ICCInterceptor {
                             , processName, remoteCC.toString());
                 }
                 HashMap<String, Object> params = (HashMap<String, Object>)cc.getParams();
-                IPCRequest request = new IPCRequest(cc.getComponentName(), cc.getActionName(), params, cc.getCallId(), isMainThreadSyncCall);
-                IPCCaller.callAsync(cc.getContext(), processName, request, new CP_Caller.ICallback() {
+                IPCRequest request = new IPCRequest.Builder()
+                        .initTask(cc.getComponentName(), cc.getActionName(), params, cc.getCallId())
+                        .mainThreadSyncCall(true)
+                        .build();
+
+                IPCCaller.callAsync(cc.getContext(), processName, request, new IPCCaller.ICallback() {
                     @Override
-                    public void onResult(Bundle bundle) {
-                        setResult(bundle);
+                    public void onResult(Bundle resultBundle) {
+                        setResult(resultBundle);
                     }
                 });
             }
@@ -114,13 +118,15 @@ class SubProcessCCInterceptor implements ICCInterceptor {
 
         private void cancel() {
             if (processName != null) {
-                IPCCaller.cancel(cc.getContext(), processName, cc.getCallId());
+                IPCRequest request = CCIPCRequest.createCancelCmd(cc.getCallId());
+                IPCCaller.callAsync(cc.getContext(), processName, request, null);
             }
         }
 
         private void timeout() {
             if (processName != null) {
-                IPCCaller.timeout(cc.getContext(), processName, cc.getCallId());
+                IPCRequest request = CCIPCRequest.createTimeoutRequest(cc.getCallId());
+                IPCCaller.callAsync(cc.getContext(), processName, request, null);
             }
         }
     }
