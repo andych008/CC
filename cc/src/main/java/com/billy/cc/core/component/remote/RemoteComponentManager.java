@@ -9,12 +9,9 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Bundle;
-import android.os.SystemClock;
-import android.text.TextUtils;
 
 import com.billy.cc.core.component.CC;
 import com.billy.cc.core.component.CCIPCRequest;
-import com.billy.cc.core.component.CCUtil;
 import com.billy.cc.core.component.ComponentManager;
 import com.billy.cc.core.ipc.IPCCaller;
 import com.billy.cc.core.ipc.IPCRequest;
@@ -33,23 +30,41 @@ import static com.billy.cc.core.ipc.IPCProvider.ARG_EXTRAS_RESULT;
  */
 public class RemoteComponentManager {
 
+    private static final String INTENT_FILTER_SCHEME = "package";
     private static final ConcurrentHashMap<String, List<String>> REMOTE_COMPONENTS = new ConcurrentHashMap<>();
 
     /**
      * 远程调用开关
      */
     public void enableRemote() {
-        // FIXME: 2020/5/21 0021 有开有关
-        //监听设备上远程组件的安装、卸载等
+
         listenRemoteApps();
 
-        //查找远程组件
         scanRemoteApps();
     }
 
-    private void scanRemoteApps() {
+    /**
+     * 获取远程组件所在app的包名
+     */
+    public String getPkgName(String componentName) {
+        String processName = null;
+        for (Map.Entry<String, List<String>> entry : REMOTE_COMPONENTS.entrySet()) {
+            for (String s : entry.getValue()) {
+                if (s.equals(componentName)) {
+                    processName = entry.getKey();
+                    break;
+                }
+            }
+        }
+        return processName;
+    }
 
+    /**
+     * 查找远程组件
+     */
+    private void scanRemoteApps() {
         //查找远程组件app的包名
+        // FIXME: 2020/5/21 0021 参数指定action
         ArrayList<String> packageNames = scanPkgWithAction("action.com.billy.cc.connection");
 
         //查找每个包里的组件
@@ -77,51 +92,15 @@ public class RemoteComponentManager {
             if (curPkg.equals(packageName)) {
                 continue;
             }
-            if (tryWakeup(packageName)) {
-                packageNames.add(packageName);
-            }
+            packageNames.add(packageName);
         }
         return packageNames;
     }
 
     /**
-     * 检测组件App是否存在，并顺便唤醒App
-     *
-     * @param packageName app的包名
-     * @return 成功与否（true:app存在，false: 不存在）
+     * 监听设备上远程组件的安装、卸载等
      */
-    public boolean tryWakeup(String packageName) {
-        long time = SystemClock.elapsedRealtime();
-        Intent intent = new Intent();
-        intent.setClassName(packageName, RemoteConnectionActivity.class.getName());
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        try {
-            CC.getApplication().startActivity(intent);
-            CC.log("wakeup remote app '%s' success. time=%d", packageName, (SystemClock.elapsedRealtime() - time));
-            return true;
-        } catch (Exception e) {
-            CCUtil.printStackTrace(e);
-            CC.log("wakeup remote app '%s' failed. time=%d", packageName, (SystemClock.elapsedRealtime() - time));
-            return false;
-        }
-    }
-
-    public String getProcessName(String componentName) {
-        String processName = null;
-        for (Map.Entry<String, List<String>> entry : REMOTE_COMPONENTS.entrySet()) {
-            for (String s : entry.getValue()) {
-                if (s.equals(componentName)) {
-                    processName = entry.getKey();
-                    break;
-                }
-            }
-        }
-        return processName;
-    }
-
-    private static final String INTENT_FILTER_SCHEME = "package";
-
-    public void listenRemoteApps() {
+    private void listenRemoteApps() {
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
         intentFilter.addAction(Intent.ACTION_PACKAGE_CHANGED);
@@ -133,19 +112,15 @@ public class RemoteComponentManager {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String packageName = intent.getDataString();
-                if (TextUtils.isEmpty(packageName)) {
-                    return;
-                }
-                if (packageName.startsWith(INTENT_FILTER_SCHEME)) {
-                    packageName = packageName.replace(INTENT_FILTER_SCHEME + ":", "");
-                }
-                String action = intent.getAction();
-                CC.log("onReceived.....pkg=" + packageName + ", action=" + action);
-                if (Intent.ACTION_PACKAGE_REMOVED.equals(action)) {
-                    REMOTE_COMPONENTS.remove(packageName);
-                } else {
-                    CC.log("start to wakeup remote app:%s", packageName);
-                    if (RemoteComponentManager.getInstance().tryWakeup(packageName)) {
+                if (packageName != null && packageName.startsWith(INTENT_FILTER_SCHEME)) {
+                    //package:com.billy.cc.demo.component.a
+                    packageName = packageName.substring(INTENT_FILTER_SCHEME.length() + 1);
+                    String action = intent.getAction();
+                    CC.log("onReceived.....pkg=%s, action=%s", packageName, action);
+                    if (Intent.ACTION_PACKAGE_REMOVED.equals(action)) {
+                        REMOTE_COMPONENTS.remove(packageName);
+                    } else {
+                        CC.log("start to wakeup remote app:%s", packageName);
                         ComponentManager.threadPool(new ScanComponentTask(packageName));
                     }
                 }

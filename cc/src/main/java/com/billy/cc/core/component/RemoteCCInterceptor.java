@@ -26,7 +26,7 @@ class RemoteCCInterceptor extends SubProcessCCInterceptor {
 
     @Override
     public CCResult intercept(Chain chain) {
-        String processName = RemoteComponentManager.getInstance().getProcessName(chain.getCC().getComponentName());
+        String processName = RemoteComponentManager.getInstance().getPkgName(chain.getCC().getComponentName());
         if (!TextUtils.isEmpty(processName)) {
             return multiProcessCall(chain, processName);
         }
