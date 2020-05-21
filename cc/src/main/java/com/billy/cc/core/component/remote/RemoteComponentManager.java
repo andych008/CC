@@ -11,7 +11,7 @@ import android.content.pm.ResolveInfo;
 import android.os.Bundle;
 
 import com.billy.cc.core.component.CC;
-import com.billy.cc.core.component.CCIPCRequest;
+import com.billy.cc.core.component.CCIPCCmd;
 import com.billy.cc.core.component.ComponentManager;
 import com.billy.cc.core.ipc.IPCCaller;
 import com.billy.cc.core.ipc.IPCRequest;
@@ -138,7 +138,7 @@ public class RemoteComponentManager {
 
         @Override
         public void run() {
-            IPCRequest request = CCIPCRequest.createGetComponentListCmd();
+            IPCRequest request = CCIPCCmd.createGetComponentListCmd();
 
             Bundle resultBundle = IPCCaller.call(CC.getApplication(), packageName, request);
             ArrayList<String> componentList = resultBundle.getStringArrayList(ARG_EXTRAS_RESULT);

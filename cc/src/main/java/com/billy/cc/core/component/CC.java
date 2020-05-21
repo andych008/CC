@@ -29,9 +29,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.billy.cc.core.component.CCIPCRequest.CMD_ACTION_CANCEL;
-import static com.billy.cc.core.component.CCIPCRequest.CMD_ACTION_GET_COMPONENT_LIST;
-import static com.billy.cc.core.component.CCIPCRequest.CMD_ACTION_TIMEOUT;
+import static com.billy.cc.core.component.CCIPCCmd.CMD_ACTION_CANCEL;
+import static com.billy.cc.core.component.CCIPCCmd.CMD_ACTION_GET_COMPONENT_LIST;
+import static com.billy.cc.core.component.CCIPCCmd.CMD_ACTION_TIMEOUT;
 import static com.billy.cc.core.component.CCUtil.put;
 import static com.billy.cc.core.component.ComponentManager.ACTION_REGISTER;
 import static com.billy.cc.core.component.ComponentManager.ACTION_UNREGISTER;
@@ -119,7 +119,7 @@ public class CC {
             public void runAction(IPCRequest request, Bundle remoteResult) {
                 Bundle extra = request.getExtra();
 
-                if (extra != null && extra.getBoolean(CCIPCRequest.EXTRAS_IS_CMD)) {
+                if (extra != null && extra.getBoolean(CCIPCCmd.EXTRAS_IS_CMD)) {
                     handleCmd(request, remoteResult);
                 } else {
                     CC cc = CC.obtainBuilder(request.getComponentName())

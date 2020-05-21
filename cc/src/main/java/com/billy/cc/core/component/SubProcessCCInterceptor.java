@@ -118,15 +118,15 @@ class SubProcessCCInterceptor implements ICCInterceptor {
 
         private void cancel() {
             if (processName != null) {
-                IPCRequest request = CCIPCRequest.createCancelCmd(cc.getCallId());
-                IPCCaller.callAsync(cc.getContext(), processName, request, null);
+                IPCRequest request = CCIPCCmd.createCancelCmd(cc.getCallId());
+                IPCCaller.callAsync(cc.getContext(), processName, request);
             }
         }
 
         private void timeout() {
             if (processName != null) {
-                IPCRequest request = CCIPCRequest.createTimeoutRequest(cc.getCallId());
-                IPCCaller.callAsync(cc.getContext(), processName, request, null);
+                IPCRequest request = CCIPCCmd.createTimeoutRequest(cc.getCallId());
+                IPCCaller.callAsync(cc.getContext(), processName, request);
             }
         }
     }

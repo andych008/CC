@@ -39,6 +39,13 @@ public class IPCCaller {
     }
 
     /**
+     * 异步调用(不监听回调)
+     */
+    public static void callAsync(Context context, String pkg, IPCRequest request) {
+        callAsync(context, pkg, request, null);
+    }
+
+    /**
      * 异步调用(回调线程：不做处理，默认在binder线程)
      */
     public static void callAsync(Context context, String pkg, IPCRequest request, final ICallback callback) {

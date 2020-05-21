@@ -9,7 +9,7 @@ import com.billy.cc.core.ipc.IPCRequest;
  *
  * @author 喵叔catuncle    2020/5/20 0020
  */
-public class CCIPCRequest {
+public class CCIPCCmd {
     public static final String CMD_ACTION_GET_COMPONENT_LIST = "cmd_action_get_component_list";
     public static final String CMD_ACTION_CANCEL = "cmd_action_cancel";
     public static final String CMD_ACTION_TIMEOUT = "cmd_action_timeout";
