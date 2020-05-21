@@ -910,7 +910,7 @@ public class CC {
             Log.i(CC.TAG, "(" + CCUtil.getCurProcessName() +")(" + Thread.currentThread().getName() + ")" + " >>>> "+s);
         }
     }
-    static void logError(String s, Object... args) {
+    public static void logError(String s, Object... args) {
         if (DEBUG) {
             s = format(s, args);
             Log.e(CC.TAG, s);

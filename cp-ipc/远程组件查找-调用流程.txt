@@ -1,0 +1,38 @@
+@startuml
+
+'请先安装PlantUML plugin查看该uml
+
+title __远程组件查找-调用流程__
+
+entity "A组件" as A
+entity "远程组件管理" as RM
+
+entity "B组件" as B
+entity "C组件" as C
+entity PackageManager as PMS
+
+
+
+A -> RM: findPkg()
+activate RM
+    RM [#green]-> PMS: queryIntentActivities()
+    PMS [#green]--> RM: 找到B、C的pkg
+deactivate RM
+
+A -> RM: findComponent()
+activate RM
+    RM [#green]-> B: call("get_component_list")
+    B [#green]--> RM: 返回组件列表
+    RM [#green]-> C: call("get_component_list")
+    B [#green]--> RM: 返回组件列表
+deactivate RM
+hnote over RM#ccffe5: 得到一个map:\n<pkg, List<component>>
+
+
+A [#green]-> B: call()
+A [#green]-> C: call()
+
+
+
+
+@enduml

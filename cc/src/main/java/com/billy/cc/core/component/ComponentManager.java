@@ -21,7 +21,7 @@ import static com.billy.cc.core.component.GlobalCCInterceptorManager.INTERCEPTOR
  * @author billy.qi
  * @since 17/6/28 20:14
  */
-class ComponentManager {
+public class ComponentManager {
     /** 当前进程中的组件集合 */
     public static final ConcurrentHashMap<String, IComponent> COMPONENTS = new ConcurrentHashMap<>();
     /**
@@ -195,7 +195,7 @@ class ComponentManager {
         MAIN_THREAD_HANDLER.post(runnable);
     }
 
-    static void threadPool(Runnable runnable) {
+    public static void threadPool(Runnable runnable) {
         if (runnable != null) {
             CC_THREAD_POOL.execute(runnable);
         }
