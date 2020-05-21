@@ -8,20 +8,14 @@ import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.os.Bundle;
 
 import com.billy.cc.core.component.CC;
-import com.billy.cc.core.component.CCIPCCmd;
 import com.billy.cc.core.component.ComponentManager;
-import com.billy.cc.core.ipc.IPCCaller;
-import com.billy.cc.core.ipc.IPCRequest;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static com.billy.cc.core.ipc.IPCProvider.ARG_EXTRAS_RESULT;
 
 /**
  * 远程组件管理(远程组件的查找)
@@ -32,6 +26,12 @@ public class RemoteComponentManager {
 
     private static final String INTENT_FILTER_SCHEME = "package";
     private static final ConcurrentHashMap<String, List<String>> REMOTE_COMPONENTS = new ConcurrentHashMap<>();
+
+    private volatile static TaskDispatcher taskDispatcher;
+
+    public void setTaskDispatcher(TaskDispatcher taskDispatcher) {
+        RemoteComponentManager.taskDispatcher = taskDispatcher;
+    }
 
     /**
      * 远程调用开关
@@ -120,36 +120,14 @@ public class RemoteComponentManager {
                     if (Intent.ACTION_PACKAGE_REMOVED.equals(action)) {
                         REMOTE_COMPONENTS.remove(packageName);
                     } else {
-                        CC.log("start to wakeup remote app:%s", packageName);
-                        ComponentManager.threadPool(new ScanComponentTask(packageName));
+                        CC.log("find a remote app:%s", packageName);
+                        taskDispatcher.threadPool(new ScanComponentTask(packageName));
                     }
                 }
             }
         }, intentFilter);
     }
 
-
-    private static class ScanComponentTask implements Runnable {
-        String packageName;
-
-        ScanComponentTask(String packageName) {
-            this.packageName = packageName;
-        }
-
-        @Override
-        public void run() {
-            IPCRequest request = CCIPCCmd.createGetComponentListCmd();
-
-            Bundle resultBundle = IPCCaller.call(CC.getApplication(), packageName, request);
-            ArrayList<String> componentList = resultBundle.getStringArrayList(ARG_EXTRAS_RESULT);
-            if (componentList != null) {
-                CC.log("getComponentListByProcessName#onResult : %s", componentList);
-                REMOTE_COMPONENTS.put(packageName, componentList);
-            } else {
-                CC.logError("componentList == null");
-            }
-        }
-    }
 
     public static RemoteComponentManager getInstance() {
         return SingletonHolder.instance;
@@ -160,5 +138,42 @@ public class RemoteComponentManager {
     }
 
     private RemoteComponentManager() {
+    }
+
+
+    /**
+     * 扫描组件的任务
+     */
+    private static class ScanComponentTask implements Runnable {
+        String packageName;
+
+        ScanComponentTask(String packageName) {
+            this.packageName = packageName;
+        }
+
+        @Override
+        public void run() {
+            ArrayList<String> componentList = taskDispatcher.getComponentList(packageName);
+            CC.log("ScanComponentTask -> getComponentList : %s", componentList);
+            if (componentList != null) {
+                REMOTE_COMPONENTS.put(packageName, componentList);
+            }
+        }
+    }
+
+    /**
+     * 任务分发器，输入包名，输出组件List
+     */
+    public interface TaskDispatcher {
+
+        /**
+         * 任务放入指定线程
+         */
+        void threadPool(Runnable runnable);
+
+        /**
+         * 获取组件List
+         */
+        ArrayList<String> getComponentList(String packageName);
     }
 }

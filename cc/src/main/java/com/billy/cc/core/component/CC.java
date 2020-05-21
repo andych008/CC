@@ -15,6 +15,7 @@ import android.util.Log;
 
 import com.billy.android.pools.ObjPool;
 import com.billy.cc.core.component.remote.RemoteCCResult;
+import com.billy.cc.core.component.remote.RemoteComponentManager;
 import com.billy.cc.core.ipc.IPCCaller;
 import com.billy.cc.core.ipc.IPCProvider;
 import com.billy.cc.core.ipc.IPCRequest;
@@ -166,6 +167,23 @@ public class CC {
             }
 
         });
+
+        RemoteComponentManager.getInstance().setTaskDispatcher(new RemoteComponentManager.TaskDispatcher() {
+            @Override
+            public void threadPool(Runnable runnable) {
+                ComponentManager.threadPool(runnable);
+            }
+
+            @Override
+            public ArrayList<String> getComponentList(String packageName) {
+                IPCRequest request = CCIPCCmd.createGetComponentListCmd();
+
+                Bundle resultBundle = IPCCaller.call(CC.getApplication(), packageName, request);
+
+                return resultBundle.getStringArrayList(ARG_EXTRAS_RESULT);
+            }
+        });
+
         if (initComponents) {
             ComponentManager.init();
         }

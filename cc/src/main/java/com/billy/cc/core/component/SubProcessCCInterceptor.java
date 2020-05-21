@@ -107,7 +107,6 @@ class SubProcessCCInterceptor implements ICCInterceptor {
         }
 
         private void setResult(Bundle bundle) {
-            bundle.setClassLoader(getClass().getClassLoader());
             RemoteCCResult remoteCCResult = bundle.getParcelable(IPCProvider.ARG_EXTRAS_RESULT);
             if (CC.VERBOSE_LOG) {
                 CC.verboseLog(cc.getCallId(), "receive RemoteCCResult from process:%s, RemoteCCResult: %s"

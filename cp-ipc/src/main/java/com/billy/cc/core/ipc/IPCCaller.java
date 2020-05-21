@@ -55,7 +55,9 @@ public class IPCCaller {
             BundleCompat.putBinder(extras, ARG_EXTRAS_CALLBACK, new IRemoteCallback.Stub() {
                 @Override
                 public void callback(Bundle remoteResult) {
-                    remoteResult.setClassLoader(getClass().getClassLoader());
+                    if (remoteResult != null) {
+                        remoteResult.setClassLoader(getClass().getClassLoader());
+                    }
                     callback.onResult(remoteResult);
                 }
             });
