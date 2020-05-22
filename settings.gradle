@@ -1,4 +1,4 @@
-include ':cc', ':cc-ipc', ':demo_component_kt', ':cc-register', ':demo_component_jsbridge'
+include ':cc', ':cc-ipc', ':cc-remote', ':demo_component_kt', ':cc-register', ':demo_component_jsbridge'
 include ':pools'
 include ':demo'
 include ':demo_component_a'

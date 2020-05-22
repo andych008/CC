@@ -7,16 +7,6 @@
             android:name=".remote.RemoteProvider"
             android:exported="true"
             />
-        <activity android:name=".remote.RemoteConnectionActivity"
-            android:taskAffinity="com.billy.cc.connection"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            >
-            <intent-filter>
-                <action android:name="action.com.billy.cc.connection" />
-            </intent-filter>
-        </activity>
     </application>
 
 </manifest>

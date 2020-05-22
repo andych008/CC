@@ -35,6 +35,7 @@ dependencies {
     compileOnly "com.android.support:appcompat-v7:${rootProject.supportVersion}"
     compileOnly project(':android_internal')
     implementation project(':cc-ipc')
+    implementation project(':cc-remote')
 }
 
 sourceCompatibility = 1.7

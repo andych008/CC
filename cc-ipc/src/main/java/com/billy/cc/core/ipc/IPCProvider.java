@@ -24,13 +24,7 @@ public class IPCProvider extends InnerProvider {
     public static final String ARG_EXTRAS_CALLBACK = "callback";
     public static final String ARG_EXTRAS_RESULT = "result";
 
-    private volatile static TaskDispatcher taskDispatcher;
     private Handler mainHandler;
-
-    public static void setTaskDispatcher(TaskDispatcher taskDispatcher) {
-        CP_Util.log("setTaskDispatcher = %s", taskDispatcher.getClass().getName());
-        IPCProvider.taskDispatcher = taskDispatcher;
-    }
 
     @Override
     public boolean onCreate() {
@@ -55,7 +49,7 @@ public class IPCProvider extends InnerProvider {
                 if (request.isMainThreadSyncCall()) {
                     mainHandler.post(task);
                 } else {
-                    IPCProvider.taskDispatcher.threadPool(task);
+                    IPCCaller.support.threadPool(task);
                 }
 
                 if (callback != null) {
@@ -104,7 +98,7 @@ public class IPCProvider extends InnerProvider {
             }
 
             Bundle remoteResult = new Bundle();
-            IPCProvider.taskDispatcher.runAction(request, remoteResult);
+            IPCCaller.support.runAction(request, remoteResult);
 
             if (callback != null) {
                 try {
@@ -146,20 +140,4 @@ public class IPCProvider extends InnerProvider {
         }
     }
 
-
-    /**
-     * 任务分发器，输入Task，输出remoteResult
-     */
-    public interface TaskDispatcher {
-
-        /**
-         * 任务放入指定线程
-         */
-        void threadPool(Runnable runnable);
-
-        /**
-         * 执行任务
-         */
-        void runAction(IPCRequest request, Bundle remoteResult);
-    }
 }

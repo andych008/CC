@@ -2,7 +2,7 @@ package com.billy.cc.core.component;
 
 import android.text.TextUtils;
 
-import com.billy.cc.core.component.remote.RemoteComponentManager;
+import com.billy.cc.core.remote.RemoteManager;
 
 /**
  * 跨App调用组件
@@ -26,7 +26,7 @@ class RemoteCCInterceptor extends SubProcessCCInterceptor {
 
     @Override
     public CCResult intercept(Chain chain) {
-        String processName = RemoteComponentManager.getInstance().getPkgName(chain.getCC().getComponentName());
+        String processName = RemoteManager.getInstance().getPkgName(chain.getCC().getComponentName());
         if (!TextUtils.isEmpty(processName)) {
             return multiProcessCall(chain, processName);
         }
@@ -36,6 +36,6 @@ class RemoteCCInterceptor extends SubProcessCCInterceptor {
 
     void enableRemoteCC() {
         //监听设备上其它包含CC组件的app
-        RemoteComponentManager.getInstance().enableRemote();
+        RemoteManager.getInstance().enableRemote();
     }
 }

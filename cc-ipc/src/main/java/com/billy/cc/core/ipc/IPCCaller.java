@@ -21,11 +21,7 @@ import static com.billy.cc.core.ipc.IPCProvider.ARG_EXTRAS_REQUEST;
  */
 public class IPCCaller {
 
-    public interface ICallback {
-        void onResult(Bundle resultBundle);
-    }
-
-    public static String URI_FORMAT = "content://%s.provider";
+    volatile static IPCSupport support;
 
     /**
      * 同步调用
@@ -34,7 +30,9 @@ public class IPCCaller {
         Bundle extras = new Bundle();
         extras.putParcelable(ARG_EXTRAS_REQUEST, request);
         Bundle remoteResult = doIpc(context, pkg, extras);
-        remoteResult.setClassLoader(IPCCaller.class.getClassLoader());
+        if (remoteResult != null) {
+            remoteResult.setClassLoader(IPCCaller.class.getClassLoader());
+        }
         return remoteResult;
     }
 
@@ -75,7 +73,9 @@ public class IPCCaller {
             BundleCompat.putBinder(extras, ARG_EXTRAS_CALLBACK, new IRemoteCallback.Stub() {
                 @Override
                 public void callback(Bundle remoteResult) {
-                    remoteResult.setClassLoader(getClass().getClassLoader());
+                    if (remoteResult != null) {
+                        remoteResult.setClassLoader(getClass().getClassLoader());
+                    }
                     Message msg = callbackHandler.obtainMessage();
                     msg.setData(remoteResult);
                     msg.sendToTarget();
@@ -90,8 +90,8 @@ public class IPCCaller {
      */
     @RequiresApi(api = Build.VERSION_CODES.HONEYCOMB)
     private static Bundle doIpc(Context context, String pkg, Bundle extras) {
-        Bundle result = null;
-        Uri uri = Uri.parse(String.format(URI_FORMAT, pkg));
+        Bundle result = Bundle.EMPTY;
+        Uri uri = Uri.parse(String.format(IPCCaller.support.uriFormat(), pkg));
         try {
             int tryMax = 5;
             do {
@@ -109,7 +109,9 @@ public class IPCCaller {
                 if (result != null) {
                     break;
                 } else {
-                    CP_Util.verboseLog("tryMax = %s", tryMax);
+                    if (CP_Util.VERBOSE_LOG) {
+                        CP_Util.verboseLog("tryMax = %s", tryMax);
+                    }
                     try {
                         Thread.sleep(50);
                     } catch (InterruptedException e) {
@@ -118,6 +120,7 @@ public class IPCCaller {
                 }
             } while (tryMax-- > 0);
         } catch (Exception e) {
+            CP_Util.logError("ipc call error : %s", e);
             e.printStackTrace();
         }
         return result;
@@ -137,4 +140,39 @@ public class IPCCaller {
         CP_Util.VERBOSE_LOG = enable;
     }
 
+    public static void setSupport(IPCSupport support) {
+        CP_Util.log("IPCSupport = %s", support.getClass().getName());
+        IPCCaller.support = support;
+    }
+
+
+    public interface ICallback {
+        void onResult(Bundle resultBundle);
+    }
+
+    public interface IPCSupport {
+
+        /**
+         * 约定访问IPCProvider的uri格式
+         * <hr/>
+         * <p>
+         *     假设包名为 com.example.application
+         *     <br/>
+         *     provider的android:authorities="com.example.application.provider"
+         *     <br/>
+         *     那么uriFormat就定义为"content://%s.provider";
+         * </p>
+         */
+        String uriFormat();
+
+        /**
+         * 任务放入指定线程
+         */
+        void threadPool(Runnable runnable);
+
+        /**
+         * 执行任务
+         */
+        void runAction(IPCRequest request, Bundle remoteResult);
+    }
 }

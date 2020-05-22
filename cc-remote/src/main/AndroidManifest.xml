@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.billy.cc.core.remote">
+
+    <application>
+        <activity
+            android:name="com.billy.cc.core.remote.inner.RemoteConnectionActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:taskAffinity="com.billy.cc.connection"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="action.com.billy.cc.connection" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

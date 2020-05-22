@@ -15,9 +15,8 @@ import android.util.Log;
 
 import com.billy.android.pools.ObjPool;
 import com.billy.cc.core.component.remote.RemoteCCResult;
-import com.billy.cc.core.component.remote.RemoteComponentManager;
+import com.billy.cc.core.remote.RemoteManager;
 import com.billy.cc.core.ipc.IPCCaller;
-import com.billy.cc.core.ipc.IPCProvider;
 import com.billy.cc.core.ipc.IPCRequest;
 
 import org.json.JSONObject;
@@ -109,8 +108,12 @@ public class CC {
             }
         }
 
-        IPCCaller.URI_FORMAT = "content://%s.com.billy.cc.core.remote";
-        IPCProvider.setTaskDispatcher(new IPCProvider.TaskDispatcher() {
+        IPCCaller.setSupport(new IPCCaller.IPCSupport() {
+            @Override
+            public String uriFormat() {
+                return "content://%s.com.billy.cc.core.remote";
+            }
+
             @Override
             public void threadPool(Runnable runnable) {
                 ComponentManager.threadPool(runnable);
@@ -145,7 +148,7 @@ public class CC {
             private void handleCmd(IPCRequest request, Bundle remoteResult) {
                 String actionName = request.getActionName();
                 if (CC.VERBOSE_LOG) {
-                    CC.verboseLog("ipc cmd = %s", actionName);
+                    CC.verboseLog(request.getCallId(), "ipc cmd = %s", actionName);
                 }
 
                 if (CMD_ACTION_GET_COMPONENT_LIST.equals(actionName)) {
@@ -168,7 +171,12 @@ public class CC {
 
         });
 
-        RemoteComponentManager.getInstance().setTaskDispatcher(new RemoteComponentManager.TaskDispatcher() {
+        RemoteManager.getInstance().setSupport(new RemoteManager.RemoteSupport() {
+            @Override
+            public Context getContext() {
+                return CC.getApplication();
+            }
+
             @Override
             public void threadPool(Runnable runnable) {
                 ComponentManager.threadPool(runnable);
@@ -181,6 +189,11 @@ public class CC {
                 Bundle resultBundle = IPCCaller.call(CC.getApplication(), packageName, request);
 
                 return resultBundle.getStringArrayList(ARG_EXTRAS_RESULT);
+            }
+
+            @Override
+            public void log(String format, Object... args) {
+                CC.log(format, args);
             }
         });
 

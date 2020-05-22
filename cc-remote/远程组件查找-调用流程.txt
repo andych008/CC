@@ -29,8 +29,12 @@ deactivate RM
 hnote over RM#ccffe5: 得到一个map:\n<pkg, List<component>>
 
 
-A [#green]-> B: call()
-A [#green]-> C: call()
+A -> A: call()
+activate A
+    A -> RM: getPkgName("componentB")
+    RM --> A: 找到B的pkg
+    A [#green]-> B
+deactivate A
 
 
 
