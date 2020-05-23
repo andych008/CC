@@ -15,6 +15,7 @@ import org.junit.runner.RunWith;
 import java.util.ArrayList;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /**
  * 单元测试
@@ -26,14 +27,19 @@ public class InstrumentedTest {
 
     //任务处理线程（建议用线程池，HandlerThread只是demo）
     private static Handler workerHandler;
-    private static final String MOCK_APP = "com.example.myapplication";
+    private static final String TARGET_APP = "com.example.target";
 
     @BeforeClass
-    public static void startApp() throws PackageManager.NameNotFoundException {
-
+    public static void startApp() throws Exception {
         Context appContext = InstrumentationRegistry.getTargetContext();
-        appContext.getPackageManager().getPackageInfo(MOCK_APP, 0);
 
+        try {
+            appContext.getPackageManager().getPackageInfo(TARGET_APP, 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            fail("请先安装app-target，以配合本单元测试的运行");
+            e.printStackTrace();
+            throw e;
+        }
 
         HandlerThread worker = new HandlerThread("CP_WORKER");
         worker.start();
@@ -63,7 +69,7 @@ public class InstrumentedTest {
                     e.printStackTrace();
                 }
                 ArrayList<String> componentList = new ArrayList<String>();
-                if (packageName.equals(MOCK_APP)) {
+                if (packageName.equals(TARGET_APP)) {
                     componentList.add("mock.ComponentA");
                     componentList.add("mock.ComponentA2");
                 }
@@ -96,7 +102,7 @@ public class InstrumentedTest {
         printLine();
 
         String pkgName = RemoteManager.getInstance().getPkgName("mock.ComponentA");
-        assertEquals(MOCK_APP, pkgName);
+        assertEquals(TARGET_APP, pkgName);
     }
 
 
