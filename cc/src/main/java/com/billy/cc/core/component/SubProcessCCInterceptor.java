@@ -93,7 +93,7 @@ class SubProcessCCInterceptor implements ICCInterceptor {
                 HashMap<String, Object> params = (HashMap<String, Object>)cc.getParams();
                 IPCRequest request = new IPCRequest.Builder()
                         .initTask(cc.getComponentName(), cc.getActionName(), params, cc.getCallId())
-                        .mainThreadSyncCall(true)
+                        .mainThreadSyncCall(isMainThreadSyncCall)
                         .build();
 
                 IPCCaller.callAsync(cc.getContext(), processName, request, new IPCCaller.ICallback() {

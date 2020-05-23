@@ -94,7 +94,7 @@ public class IPCProvider extends InnerProvider {
         @Override
         public void run() {
             if (CP_Util.VERBOSE_LOG) {
-                CP_Util.verboseLog("Task run with: %s", request);
+                CP_Util.verboseLog("IPC Task run with: %s", request);
             }
 
             Bundle remoteResult = new Bundle();
