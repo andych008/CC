@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.billy.cc.demo">
+    package="com.billy.cc.demo"
+    android:sharedUserId="com.billy.cc">
 
     <application android:name=".MyApp"
         android:allowBackup="true"

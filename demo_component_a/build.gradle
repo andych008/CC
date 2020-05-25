@@ -15,9 +15,26 @@ android {
         versionCode 1
         versionName "1.0"
     }
+
+    signingConfigs {
+        releaseconfig {
+            storeFile rootProject.file('cc.keystore')
+            storePassword 'cc-demo'
+            keyAlias 'cc-demo'
+            keyPassword 'cc-demo'
+        }
+    }
+    
     resourcePrefix "demo_a_"
 
     buildTypes {
+
+        debug {
+            minifyEnabled false
+            debuggable true
+            signingConfig signingConfigs.releaseconfig
+        }
+
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
